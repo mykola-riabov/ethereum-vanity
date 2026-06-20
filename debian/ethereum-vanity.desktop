@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Ethereum Vanity
+GenericName=Ethereum Vanity Address Generator
+Comment=Generate custom EVM addresses and scan balances
+Exec=eth-vanity-gui
+Icon=ethereum-vanity
+Terminal=false
+Type=Application
+Categories=Utility;Finance;
+Keywords=crypto;ethereum;evm;wallet;vanity;eth;
+StartupWMClass=ethereum-vanity

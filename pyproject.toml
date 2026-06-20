@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ethereum-vanity"
+version = "0.1.1"
+description = "CPU vanity address generator for Ethereum / EVM networks"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "ecdsa",
+    "mnemonic",
+    "pycryptodome",
+    "PySide6>=6.5",
+    "requests",
+    "tqdm",
+]
+
+[project.scripts]
+eth-vanity = "main:main"
+eth-scan = "scan:main"
+eth-vanity-gui = "gui.app:main"
+
+[tool.setuptools]
+py-modules = ["ethereum_address", "main", "scan", "scanner", "chains", "bip32_pure", "workspace"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["gui*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
