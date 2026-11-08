@@ -56,8 +56,11 @@ eth-vanity --prefix 0xdead --count 1
 # Lowercase without EIP-55 checksum
 eth-vanity --prefix dead --no-checksum --count 1
 
-# Multiprocessing + split 500k addresses per file
-eth-vanity --prefix 0x --suffix ff --count 1000000 --per-file 500000 --pool --pool-workers 4
+# Recoverable from a phrase and fast: one phrase per worker, address index searched
+eth-vanity --prefix 0xbeef --mnemonic --index-search --count 1
+
+# 8 workers + split 500k addresses per file
+eth-vanity --prefix 0x --suffix ff --count 1000000 --per-file 500000 --workers 8
 
 # Scan balances on Ethereum mainnet
 eth-scan
@@ -67,12 +70,37 @@ ETH_CHAIN=sepolia eth-scan
 ETH_RPC_URL=https://my-rpc.example eth-scan
 ```
 
+### Speed and modes
+
+Every worker process generates, derives and checks keys on its own; only matches cross processes,
+so speed grows with `--workers` (default: CPU count). Curve math goes through the system
+**libsecp256k1** (the library Bitcoin Core uses) when installed —
+`sudo apt install libsecp256k1-6` — and pure-Python `ecdsa` otherwise.
+`SECP256K1_LIBRARY=/path/libsecp256k1.so` picks a library, `SECP256K1_DISABLE=1` forces the fallback.
+
+- random key (default) — fastest, no recovery phrase;
+- `--mnemonic` — a new BIP39 phrase per attempt (slow: PBKDF2 with 2048 rounds per phrase);
+- `--mnemonic --index-search` — one phrase per worker, then the last path index 0, 1, 2…;
+  as fast as random keys and recoverable. The found `path` is saved with the result: write down
+  the phrase **and** the path, and open that address index in the wallet.
+
+Measured on a 16-thread desktop CPU (2026-11-08), keys per second:
+
+| Mode | before (1 process / `--pool-workers 16`) | now, 16 workers |
+|------|-----------------------------------------:|----------------:|
+| Random key | 2,500 / 18,400 | 322,000 |
+| `--mnemonic --index-search` | — | 278,000 |
+| `--mnemonic` | the pool waited for one generator | 8,200 |
+
+`--batch` is how many keys each worker checks between progress reports and Stop checks (default 500).
+`--pool` is ignored and `--pool-workers` is an alias of `--workers`.
+
 ## Output
 
 JSONL records (one object per line):
 
 ```json
-{"address": "0xf39F…", "private_key": "0xac09…", "mnemonic": "…"}
+{"address": "0xf39F…", "private_key": "0xac09…", "mnemonic": "…", "path": "m/44'/60'/0'/0/1749"}
 ```
 
 ## Scanner

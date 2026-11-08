@@ -6,20 +6,23 @@ import hashlib
 import os
 import re
 from dataclasses import dataclass
+from functools import partial
+from typing import Callable
 
-import ecdsa
-from bip32_pure import BIP32
+from bip32_pure import BIP32, parse_path
 from Crypto.Hash import keccak
 from mnemonic import Mnemonic
 
-VERSION = "0.1.1"
+import secp
+
+VERSION = "0.2.0"
 HARDENED_OFFSET = 0x80000000
 ALLOWED_STRENGTHS = [128, 160, 192, 224, 256]
 DEFAULT_DERIVATION_PATH = "m/44'/60'/0'/0/0"
 HEX_ALPHABET = "0123456789abcdef"
 HEX_CHARSET_SIZE = 16
 
-_CURVE_ORDER = ecdsa.SECP256k1.order
+_CURVE_ORDER = secp.CURVE_ORDER
 _MNEMO = Mnemonic("english")
 _HEX_RE = re.compile(r"^[0-9a-fA-F]*$")
 
@@ -82,8 +85,7 @@ def estimate_difficulty(prefix: str, suffix: str) -> DifficultyEstimate:
 
 
 def _pubkey_bytes(priv_bytes: bytes) -> bytes:
-    sk = ecdsa.SigningKey.from_string(priv_bytes, curve=ecdsa.SECP256k1)
-    return sk.get_verifying_key().to_string()
+    return secp.pubkey_xy(priv_bytes)
 
 
 def _address_hex_lower(priv_bytes: bytes) -> str:
@@ -140,10 +142,16 @@ def try_match_privkey(
     case_sensitive: bool = False,
 ) -> str | None:
     try:
-        addr = privkey_to_address(priv_bytes, checksum=checksum)
+        lower = _address_hex_lower(priv_bytes)
     except Exception:
         return None
-    return addr if matches_vanity(addr, prefix, suffix, case_sensitive=case_sensitive) else None
+    if not case_sensitive:
+        # Case-insensitive match needs no checksum; compute it only for a hit.
+        if not matches_vanity(lower, prefix, suffix):
+            return None
+        return to_checksum_address(lower) if checksum else "0x" + lower
+    addr = to_checksum_address(lower) if checksum else "0x" + lower
+    return addr if matches_vanity(addr, prefix, suffix, case_sensitive=True) else None
 
 
 def random_privkey_from_entropy(strength_bits: int) -> bytes:
@@ -164,9 +172,7 @@ def mnemonic_to_privkey(strength_bits: int, derivation_path: str) -> tuple[bytes
     words = _MNEMO.to_mnemonic(entropy_bytes)
     seed = _MNEMO.to_seed(words)
     bip32 = BIP32.from_seed(seed)
-    path = derivation_path.lstrip("m/").split("/")
-    path = [int(p.replace("'", "")) + HARDENED_OFFSET if "'" in p else int(p) for p in path]
-    return bip32.get_privkey_from_path(path), words
+    return bip32.get_privkey_from_path(parse_path(derivation_path)), words
 
 
 def generate_keys_batch(
@@ -197,4 +203,17 @@ def check_key_indexed(
         suffix,
         checksum=checksum,
         case_sensitive=case_sensitive,
+    )
+
+
+def make_matcher(
+    prefix: str,
+    suffix: str,
+    *,
+    checksum: bool = True,
+    case_sensitive: bool = False,
+) -> Callable[[bytes], str | None]:
+    """Picklable `priv -> address or None` for the search engine."""
+    return partial(
+        try_match_privkey, prefix=prefix, suffix=suffix, checksum=checksum, case_sensitive=case_sensitive
     )
