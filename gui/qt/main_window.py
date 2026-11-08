@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 
 from PySide6.QtCore import Qt
@@ -324,4 +325,10 @@ def run_app() -> None:
         app.setWindowIcon(QIcon(str(icon_path)))
     window = MainWindow()
     window.show()
-    sys.exit(app.exec())
+    code = app.exec()
+    # PySide6 6.12 on Python 3.14 can crash with SIGBUS in QObject::~QObject() while it tears down
+    # the remaining Qt objects at interpreter exit. The window has closed and the search is stopped
+    # by now, so leave without that teardown.
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(code)

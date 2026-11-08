@@ -15,7 +15,7 @@ from mnemonic import Mnemonic
 
 import secp
 
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 HARDENED_OFFSET = 0x80000000
 ALLOWED_STRENGTHS = [128, 160, 192, 224, 256]
 DEFAULT_DERIVATION_PATH = "m/44'/60'/0'/0/0"
